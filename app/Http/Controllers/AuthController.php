@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helper\JWTToken;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -27,22 +28,30 @@ class AuthController extends Controller
         $user = User::where('email', $request->input('email'))->first();
 
         if ($user && Hash::check($request->input('password'), $user->password)) {
-            switch ($user->role) {
-                case 'admin':
-                    return response()->json(['redirect_url' => '/admin/dashboard'], 200);
-                case 'teacher':
-                    return response()->json(['redirect_url' => '/teacher/dashboard'], 200);
-                case 'student':
-                    return response()->json(['redirect_url' => '/student/dashboard'], 200);
-                default:
-                    return response()->json(['error' => 'Role not found'], 403);
+            // Generate JWT token
+            $token = JWTToken::CreateToken($request->input('email'), $user->id, $user->role);
+
+            // Set up the redirect URL based on user role
+            $redirectUrl = match ($user->role) {
+                'admin' => '/admin/dashboard',
+                'teacher' => '/teacher/dashboard',
+                'student' => '/student/dashboard',
+                default => null,
+            };
+
+            if ($redirectUrl) {
+                return response()
+                    ->json(['redirect_url' => $redirectUrl], 200)
+                    ->cookie('token', $token, 60 * 24 * 30);
+            } else {
+                return response()->json(['error' => 'Role not found'], 403);
             }
         }
-
         return response()->json(['error' => 'Invalid email or password'], 401);
     }
 
-
-
+    function Logout(){
+        return redirect('/')->cookie('token','',-1);
+    }
 
 }
